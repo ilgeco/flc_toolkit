@@ -202,12 +202,12 @@ impl Pilot {
 
     fn convergence_conflicts(&self) -> Vec<ConvergenceConflict> {
         let mut res: Vec<ConvergenceConflict> = Vec::new();
-        for (i, state) in self.states.iter().enumerate() {
+        for state in &self.states {
             for trans in &state.transitions {
                 let dest_state = self.lookup_state(trans.dest_id);
                 let n_seeds = dest_state.seeds().len();
                 if n_seeds != trans.multiplicity as usize {
-                    res.push(ConvergenceConflict{state_1_id:i as i32, transition_char:trans.character, state_2_id:trans.dest_id});
+                    res.push(ConvergenceConflict{state_1_id:state.id, transition_char:trans.character, state_2_id:trans.dest_id});
                 }
             }
         }
@@ -234,7 +234,7 @@ impl Pilot {
         println!("convergence conflict: multiple transition from state {s1} character {ts} leads to merged base set in state {s2}");
     }
 
-    fn print_conflicts(&self) -> () {
+    fn print_conflicts(&self) {
         let mut n_confl = 0;
         for state in &self.states {
             let sr_confl = state.shift_reduce_conflicts();
@@ -282,7 +282,7 @@ fn closure(state: &mut PilotState, net: &MachineNet) {
     }
 }
 
-fn collect_transitions(state: &PilotState, net: &MachineNet) -> HashSet<char> {
+fn collect_transitions(state: &PilotState, net: &MachineNet) -> Vec<char> {
     let mut res: HashSet<char> = HashSet::new();
     for c in &state.candidates {
         let mstate = net.lookup_state(c.machine, c.state);
@@ -290,7 +290,9 @@ fn collect_transitions(state: &PilotState, net: &MachineNet) -> HashSet<char> {
             res.insert(t.character);
         }
     }
-    return res;
+    let mut vec_res = Vec::from_iter(res.into_iter());
+    vec_res.sort();
+    return vec_res;
 }
 
 fn shift_candidate(c: &Candidate, net: &MachineNet, next: char) -> Option<Candidate> {
@@ -366,6 +368,7 @@ fn main() {
     ]};
     let net = MachineNet{machines:vec![mach_s, mach_b, mach_a]};
     */
+    /*
     // 2024-02-13
     let mach_s = Machine{name:'S', states:vec![
         State{id:0, transitions:vec![Transition{character:'A', dest_id:1}], is_initial:true, is_final:false},
@@ -384,6 +387,7 @@ fn main() {
         State{id:3, transitions:vec![], is_initial:false, is_final:true},
     ]};
     let net = MachineNet{machines:vec![mach_s, mach_a, mach_c]};
+    */
     /*
     let mach_s = Machine{name:'S', states:vec![
         State{id:0, transitions:vec![Transition{character:'d', dest_id:1}], is_initial:true, is_final:false},
@@ -398,6 +402,23 @@ fn main() {
     ]};
     let net = MachineNet{machines:vec![mach_s, mach_a]};
     */
+    // 2024-07-04
+    let mach_s = Machine{name:'S', states:vec![
+        State{id:0, transitions:vec![Transition{character:'a', dest_id:1}], is_initial:true, is_final:false},
+        State{id:1, transitions:vec![Transition{character:'a', dest_id:1}, Transition{character:'A', dest_id:2}], is_initial:false, is_final:false},
+        State{id:2, transitions:vec![], is_initial:false, is_final:true},
+    ]};
+    let mach_a = Machine{name:'A', states:vec![
+        State{id:0, transitions:vec![Transition{character:'b', dest_id:1}, Transition{character:'B', dest_id:2}], is_initial:true, is_final:true},
+        State{id:1, transitions:vec![Transition{character:'B', dest_id:2}], is_initial:false, is_final:false},
+        State{id:2, transitions:vec![], is_initial:false, is_final:true},
+    ]};
+    let mach_b = Machine{name:'B', states:vec![
+        State{id:0, transitions:vec![Transition{character:'A', dest_id:1}], is_initial:true, is_final:false},
+        State{id:1, transitions:vec![Transition{character:'c', dest_id:2}], is_initial:false, is_final:false},
+        State{id:2, transitions:vec![], is_initial:false, is_final:true},
+    ]};
+    let net = MachineNet{machines:vec![mach_s, mach_a, mach_b]};
     let pilot = create_pilot(&net);
     println!("pilot: {pilot:?}");
     pilot.print_conflicts();
