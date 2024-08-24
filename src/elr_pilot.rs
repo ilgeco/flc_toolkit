@@ -1,3 +1,5 @@
+pub mod dot_formatter;
+
 use std::collections::VecDeque;
 use std::collections::HashSet;
 pub use crate::fsm::*;

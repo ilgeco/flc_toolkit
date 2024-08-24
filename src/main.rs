@@ -3,7 +3,6 @@ mod fsm;
 
 pub use crate::elr_pilot::*;
 
-
 fn main() {
     /*
     let mach_s = Machine{name:'S', states:vec![
@@ -24,7 +23,6 @@ fn main() {
     ]};
     let net = MachineNet{machines:vec![mach_s, mach_b, mach_a]};
     */
-    /*
     // 2024-02-13
     let mach_s = Machine{name:'S', states:vec![
         State{id:0, transitions:vec![Transition{character:'A', dest_id:1}], is_initial:true, is_final:false},
@@ -43,7 +41,6 @@ fn main() {
         State{id:3, transitions:vec![], is_initial:false, is_final:true},
     ]};
     let net = MachineNet{machines:vec![mach_s, mach_a, mach_c]};
-    */
     /*
     let mach_s = Machine{name:'S', states:vec![
         State{id:0, transitions:vec![Transition{character:'d', dest_id:1}], is_initial:true, is_final:false},
@@ -58,6 +55,7 @@ fn main() {
     ]};
     let net = MachineNet{machines:vec![mach_s, mach_a]};
     */
+    /*
     // 2024-07-04
     let mach_s = Machine{name:'S', states:vec![
         State{id:0, transitions:vec![Transition{character:'a', dest_id:1}], is_initial:true, is_final:false},
@@ -75,7 +73,9 @@ fn main() {
         State{id:2, transitions:vec![], is_initial:false, is_final:true},
     ]};
     let net = MachineNet{machines:vec![mach_s, mach_a, mach_b]};
+    */
     let pilot = create_pilot(&net);
-    println!("pilot: {pilot:?}");
+    //println!("pilot: {pilot:?}");
+    println!("{}", pilot.to_dot());
     pilot.print_conflicts();
 }
