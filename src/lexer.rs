@@ -1,9 +1,16 @@
 use std::{fs::File, path::Path};
 use std::io::prelude::*;
 
+
 pub struct Lexer {
     input: String,
-    read_idx: usize
+    read_idx: usize,
+    read_loc: SourceLocation
+}
+
+struct Fragment<'a> {
+    loc: SourceLocation,
+    val: &'a str
 }
 
 #[derive(Debug)]
@@ -22,9 +29,32 @@ pub enum TokenValue {
     KwFinal,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct SourceLocation {
+    pub row: usize,
+    pub col: usize
+}
+
+impl SourceLocation {
+    fn new() -> SourceLocation {
+        SourceLocation{row:0, col:0}
+    }
+
+    pub fn emit_error(&self, s: &str) {
+        eprintln!("{}:{}: error: {}", self.row+1, self.col+1, s);
+    }
+}
+
 #[derive(Debug)]
 pub struct Token {
+    pub location: SourceLocation,
     pub value: TokenValue
+}
+
+impl Token {
+    fn from_frag(frag: &Fragment, value: TokenValue) -> Token {
+        Token{location:frag.loc, value}
+    }
 }
 
 impl Lexer {
@@ -38,20 +68,46 @@ impl Lexer {
         if let Err(why) = file.read_to_string(&mut s) {
             panic!("couldn't read file: {}", why);
         }
-        Lexer{input:s, read_idx:0}
+        Lexer{input:s, read_idx:0, read_loc:SourceLocation::new()}
     }
 
-    fn accept_pattern(&mut self, pat: &str) -> Option<String> {
+    fn advance(&mut self, len: usize) -> Fragment {
+        let loc = self.read_loc;
+        let mut iter = self.input[self.read_idx..].char_indices();
+        let end = loop {
+            if let Some((i, c)) = iter.next() {
+                if i == len {
+                    break i;
+                }
+                if c == '\n' {
+                    self.read_loc.col = 0;
+                    self.read_loc.row += 1;
+                } else if c != '\r' {
+                    self.read_loc.col += 1;
+                }
+            } else {
+                if let Some((i, _)) = iter.last() {
+                    break i;
+                } else {
+                    break 0;
+                }
+            }
+        };
+        let val = &self.input[self.read_idx .. self.read_idx+end];
+        self.read_idx += end;
+        Fragment{loc, val}
+    }
+
+    fn accept_pattern(&mut self, pat: &str) -> Option<Fragment> {
         let next = &self.input[self.read_idx..];
         if next.starts_with(pat) {
-            self.read_idx += pat.len();
-            Some(pat.to_string())
+            Some(self.advance(pat.len()))
         } else {
             None
         }
     }
 
-    fn accept_identifier(&mut self) -> Option<String> {
+    fn accept_identifier(&mut self) -> Option<Fragment> {
         let slice = &self.input[self.read_idx..];
         let mut next_iter = slice.char_indices();
         let end = loop {
@@ -69,15 +125,13 @@ impl Lexer {
             }
         };
         if end > 0 {
-            let slice = &self.input[self.read_idx .. self.read_idx+end];
-            self.read_idx += end;
-            Some(slice.to_string())
+            Some(self.advance(end))
         } else {
             None
         }
     }
 
-    fn accept_number(&mut self) -> Option<i32> {
+    fn accept_number(&mut self) -> Option<Fragment> {
         let slice = &self.input[self.read_idx..];
         let mut next_iter = slice.char_indices();
         let end = loop {
@@ -90,19 +144,16 @@ impl Lexer {
             }
         };
         if end > 0 {
-            let slice = &self.input[self.read_idx .. self.read_idx+end];
-            self.read_idx += end;
-            Some(slice.parse().unwrap())
+            Some(self.advance(end))
         } else {
             None
         }
     }
 
-    fn accept_invalid(&mut self) -> Option<char> {
+    fn accept_invalid(&mut self) -> Option<Fragment> {
         let slice = &self.input[self.read_idx..];
-        if let Some((i, c)) = slice.char_indices().next() {
-            self.read_idx += i;
-            Some(c)
+        if let Some((i, _)) = slice.char_indices().next() {
+            Some(self.advance(i))
         } else {
             None
         }
@@ -120,7 +171,7 @@ impl Lexer {
                 break slice.len();
             }
         };
-        self.read_idx += end;
+        self.advance(end);
     }
 }
 
@@ -129,35 +180,37 @@ impl Iterator for Lexer {
 
     fn next(&mut self) -> Option<Token> {
         self.skip_whitespace();
-        if let Some(_) = self.accept_pattern(";") {
-            return Some(Token{value:TokenValue::Semi});
-        } else if let Some(_) = self.accept_pattern("{") {
-            return Some(Token{value:TokenValue::LBrace});
-        } else if let Some(_) = self.accept_pattern("}") {
-            return Some(Token{value:TokenValue::RBrace});
-        } else if let Some(_) = self.accept_pattern("->") {
-            return Some(Token{value:TokenValue::RArrow});
-        } else if let Some(id) = self.accept_identifier() {
+        if let Some(frag) = self.accept_pattern(";") {
+            return Some(Token::from_frag(&frag, TokenValue::Semi));
+        } else if let Some(frag) = self.accept_pattern("{") {
+            return Some(Token::from_frag(&frag, TokenValue::LBrace));
+        } else if let Some(frag) = self.accept_pattern("}") {
+            return Some(Token::from_frag(&frag, TokenValue::RBrace));
+        } else if let Some(frag) = self.accept_pattern("->") {
+            return Some(Token::from_frag(&frag, TokenValue::RArrow));
+        } else if let Some(frag) = self.accept_identifier() {
+            let id = frag.val;
             if id == "mnet" {
-                return Some(Token{value:TokenValue::KwMNet});
+                return Some(Token::from_frag(&frag, TokenValue::KwMNet));
             } else if id == "machine" {
-                return Some(Token{value:TokenValue::KwMachine});
+                return Some(Token::from_frag(&frag, TokenValue::KwMachine));
             } else if id == "state" {
-                return Some(Token{value:TokenValue::KwState});
+                return Some(Token::from_frag(&frag, TokenValue::KwState));
             } else if id == "initial" {
-                return Some(Token{value:TokenValue::KwInitial});
+                return Some(Token::from_frag(&frag, TokenValue::KwInitial));
             } else if id == "final" {
-                return Some(Token{value:TokenValue::KwFinal});
+                return Some(Token::from_frag(&frag, TokenValue::KwFinal));
             } else if id.len() == 1 {
-                return Some(Token{value:TokenValue::Ident(id.chars().next().unwrap())});
+                return Some(Token::from_frag(&frag, TokenValue::Ident(id.chars().next().unwrap())));
             } else {
-                println!("identifier {} is too long ({})", id, id.len());
-                return Some(Token{value:TokenValue::Invalid});
+                frag.loc.emit_error("identifier longer than one character");
+                return Some(Token::from_frag(&frag, TokenValue::Invalid));
             }
-        } else if let Some(num) = self.accept_number() {
-            return Some(Token{value:TokenValue::Number(num)});
-        } else if let Some(_) = self.accept_invalid() {
-            return Some(Token{value:TokenValue::Invalid});
+        } else if let Some(frag) = self.accept_number() {
+            let num = frag.val.parse().unwrap();
+            return Some(Token::from_frag(&frag, TokenValue::Number(num)));
+        } else if let Some(frag) = self.accept_invalid() {
+            return Some(Token::from_frag(&frag, TokenValue::Invalid));
         }
         return None;
     }

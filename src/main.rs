@@ -11,8 +11,6 @@ pub use crate::elr_pilot::*;
 pub use crate::lexer::*;
 pub use crate::parser::*;
 
-
-
 fn main() {
     let args: Vec<_> = args().collect();
     if args.len() != 2 {
