@@ -23,6 +23,76 @@ impl MachineNet {
         self.lookup_machine(machine).lookup_state(id)
     }
 
+    fn validate_machine_count(&self) -> bool {
+        if self.machines.len() == 0 {
+            eprintln!("error: no machines in the machine net");
+            false
+        } else {
+            true
+        }
+    }
+
+    fn validate_start(&self) -> bool {
+        // There must be a S-named machine
+        for m in &self.machines {
+            if m.name == 'S' {
+                return true;
+            }
+        }
+        eprintln!("error: axiom (machine named S) missing");
+        false
+    }
+
+    fn validate_state_count(&self) -> bool {
+        // All machines must have > 0 states
+        let mut res = true;
+        for m in &self.machines {
+            if m.states.len() == 0 {
+                eprintln!("error: machine {} has zero states", m.name);
+                res = false;
+            }
+        }
+        res
+    }
+
+    fn validate_single_initial_state(&self) -> bool {
+        // The initial state must be state 0. All other states are not initial
+        let mut res = true;
+        for m in &self.machines {
+            for s in &m.states {
+                if s.is_initial && s.id != 0 {
+                    eprintln!("error: state {}{} cannot be initial", m.name, s.id);
+                    res = false;
+                } else if s.id == 0 && !s.is_initial {
+                    eprintln!("error: state {}{} must be initial", m.name, s.id);
+                    res = false;
+                }
+            }
+        }
+        res
+    }
+
+    fn validate_any_final_state(&self) -> bool {
+        let mut res = true;
+        for m in &self.machines {
+            if !m.states.iter().any(|s| s.is_final) {
+                eprintln!("error: no final state in machine {}", m.name);
+                res = false;
+            }
+        }
+        res
+    }
+
+    pub fn validate(&self) -> bool {
+        [
+            self.validate_machine_count(),
+            self.validate_start(),
+            self.validate_state_count(),
+            self.validate_single_initial_state(),
+            self.validate_any_final_state()
+        ].into_iter().all(|v| v)
+    }
+
     fn followers_impl<'a>(&'a self, machine: char, id: i32, visited: &mut HashSet<&'a Transition>, next: &HashSet<char>) -> HashSet<char> {
         let state = self.lookup_state(machine, id);
         let mut res: HashSet<char> = HashSet::new();

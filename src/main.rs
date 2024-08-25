@@ -21,9 +21,11 @@ fn main() {
     let lex = Lexer::from_path(Path::new(&args[1]));
     let mut pars = Parser::new(lex);
     if let Some(net) = pars.parse_mnet() {
-        let pilot = create_pilot(&net);
-        //println!("pilot: {pilot:?}");
-        println!("{}", pilot.to_dot());
-        pilot.print_conflicts();
+        if net.validate() {
+            let pilot = create_pilot(&net);
+            //println!("pilot: {pilot:?}");
+            println!("{}", pilot.to_dot());
+            pilot.print_conflicts();
+        }
     }
 }
