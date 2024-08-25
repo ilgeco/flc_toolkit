@@ -3,17 +3,26 @@ mod fsm;
 mod lexer;
 mod parser;
 
+use std::env::args;
 use std::path::Path;
+use std::process::exit;
 
 pub use crate::elr_pilot::*;
 pub use crate::lexer::*;
 pub use crate::parser::*;
 
+
+
 fn main() {
-    let lex = Lexer::from_path(Path::new("test_file.txt"));
+    let args: Vec<_> = args().collect();
+    if args.len() != 2 {
+        eprintln!("usage: {} [file]", args[0]);
+        exit(1);
+    }
+
+    let lex = Lexer::from_path(Path::new(&args[1]));
     let mut pars = Parser::new(lex);
     if let Some(net) = pars.parse_mnet() {
-        println!("{net:?}");
         let pilot = create_pilot(&net);
         //println!("pilot: {pilot:?}");
         println!("{}", pilot.to_dot());

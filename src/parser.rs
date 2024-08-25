@@ -40,14 +40,14 @@ macro_rules! accept {
 impl Parser {
     pub fn new(mut lexer: Lexer) -> Parser {
         let lookahead = lexer.next();
-        println!("{lookahead:?}");
+        //println!("{lookahead:?}");
         Parser{lexer, lookahead}
     }
 
     fn advance(&mut self) -> Option<Token> {
         if let Some(_) = self.lookahead {
             let new = self.lexer.next();
-            println!("{new:?}");
+            //println!("{new:?}");
             replace(&mut self.lookahead, new)
         } else {
             None
