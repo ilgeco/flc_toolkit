@@ -131,6 +131,17 @@ pub struct Candidate {
     pub is_final: bool
 }
 
+impl Candidate {
+    fn to_string(&self) -> String {
+        let state = if self.is_final {
+            format!("({}{})", self.state, self.machine)
+        } else {
+            format!("{}{}", self.state, self.machine)
+        };
+        format!("<{}, {}>", state, self.lookahead)
+    }
+}
+
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
 pub struct PilotTransition {
     pub character: char,
@@ -254,22 +265,24 @@ impl Pilot {
 
     pub fn print_shift_reduce_conflict(&self, c: &ShiftReduceConflict) {
         let s = c.state_id;
-        let c1 = c.candidate_idx;
-        println!("shift-reduce conflict in state {s}, candidate {c1} is final");
+        let candidate = &self.lookup_state(s).candidates[c.candidate_idx];
+        let c = candidate.to_string();
+        let edge = candidate.lookahead;
+        eprintln!("state I{s}: shift-reduce conflict between {c} and outgoing edge '{edge}'");
     }
 
     pub fn print_reduce_reduce_conflict(&self, c: &ReduceReduceConflict) {
         let s = c.state_id;
-        let c1 = c.candidate_1_idx;
-        let c2 = c.candidate_2_idx;
-        println!("reduce-reduce conflict in state {s}, candidates {c1} and {c2}");
+        let c1 = self.lookup_state(s).candidates[c.candidate_1_idx].to_string();
+        let c2 = self.lookup_state(s).candidates[c.candidate_2_idx].to_string();
+        eprintln!("state I{s}: reduce-reduce conflict between {c1} and {c2}");
     }
     
     pub fn print_convergence_conflict(&self, c: &ConvergenceConflict) {
         let s1 = c.state_1_id;
         let ts = c.transition_char;
         let s2 = c.state_2_id;
-        println!("convergence conflict: multiple transition from state {s1} character {ts} leads to merged base set in state {s2}");
+        eprintln!("convergence: multiple transition I{s1} -{ts}-> I{s2} leads to merged base candidate set");
     }
 
     pub fn print_conflicts(&self) {
