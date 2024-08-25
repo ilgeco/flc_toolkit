@@ -10,6 +10,7 @@ impl Transition {
     }
 }
 
+#[derive(Debug)]
 pub struct State {
     pub id: i32,
     pub transitions: Vec<Transition>,
@@ -17,6 +18,7 @@ pub struct State {
     pub is_final: bool
 }
 
+#[derive(Debug)]
 pub struct Machine {
     pub name: char,
     pub states: Vec<State>

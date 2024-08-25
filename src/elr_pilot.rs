@@ -4,6 +4,7 @@ use std::collections::VecDeque;
 use std::collections::HashSet;
 pub use crate::fsm::*;
 
+#[derive(Debug)]
 pub struct MachineNet {
     pub machines: Vec<Machine>
 }
