@@ -93,17 +93,17 @@ impl MachineNet {
         ].into_iter().all(|v| v)
     }
 
-    fn followers_impl<'a>(&'a self, machine: char, id: i32, visited: &mut HashSet<&'a Transition>, next: &HashSet<char>) -> HashSet<char> {
+    fn followers_impl(&self, machine: char, id: i32, visited: &mut HashSet<(char, i32)>, next: &HashSet<char>) -> HashSet<char> {
+        if visited.contains(&(machine, id)) {
+            return HashSet::new();
+        }
+        visited.insert((machine, id));
         let state = self.lookup_state(machine, id);
         let mut res: HashSet<char> = HashSet::new();
         if state.is_final {
             res.extend(next);
         }
         for t in &state.transitions {
-            if visited.contains(t) {
-                continue;
-            }
-            visited.insert(t);
             if !t.is_nonterminal() {
                 res.insert(t.character);
             } else {
@@ -116,7 +116,7 @@ impl MachineNet {
     }
 
     fn followers(&self, machine: char, id: i32, next: HashSet<char>) -> HashSet<char> {
-        let mut visited: HashSet<&Transition> = HashSet::new();
+        let mut visited: HashSet<(char, i32)> = HashSet::new();
         return self.followers_impl(machine, id, &mut visited, &next);
     }
 }
