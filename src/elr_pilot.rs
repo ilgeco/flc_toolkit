@@ -145,11 +145,12 @@ impl Candidate {
     }
 }
 
-#[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
+#[derive(Debug, Clone, Eq, Hash, PartialEq)]
 pub struct PilotTransition {
     pub character: char,
     pub dest_id: i32,
-    pub multiplicity: i32
+    pub multiplicity: i32,
+    pub candidate_map: Vec<(usize, usize)>
 }
 
 pub struct ShiftReduceConflict {
@@ -165,8 +166,11 @@ pub struct ReduceReduceConflict {
 
 pub struct ConvergenceConflict {
     pub state_1_id: i32,
+    pub candidate_1_1_idx: usize,
+    pub candidate_1_2_idx: usize,
     pub transition_char: char,
-    pub state_2_id: i32
+    pub state_2_id: i32,
+    pub candidate_2_idx: usize
 }
 
 #[derive(Debug, Clone)]
@@ -213,6 +217,26 @@ impl PilotState {
         }
         res
     }
+
+    pub fn convergence_conflicts(&self) -> Vec<ConvergenceConflict> {
+        let mut res: Vec<ConvergenceConflict> = Vec::new();
+        for t in &self.transitions {
+            for (i, (i_s, i_d)) in t.candidate_map.iter().enumerate() {
+                for (j_s, j_d) in t.candidate_map[i+1 ..].iter() {
+                    if i_d == j_d {
+                        res.push(ConvergenceConflict{
+                            state_1_id:self.id,
+                            candidate_1_1_idx:*i_s,
+                            candidate_1_2_idx:*j_s,
+                            transition_char:t.character,
+                            state_2_id:t.dest_id,
+                            candidate_2_idx:*i_d});
+                    }
+                }
+            }
+        }
+        res
+    }
 }
 
 #[derive(Debug)]
@@ -252,20 +276,6 @@ impl Pilot {
         return id;
     }
 
-    pub fn convergence_conflicts(&self) -> Vec<ConvergenceConflict> {
-        let mut res: Vec<ConvergenceConflict> = Vec::new();
-        for state in &self.states {
-            for trans in &state.transitions {
-                let dest_state = self.lookup_state(trans.dest_id);
-                let n_base_cand = dest_state.base_set().len();
-                if n_base_cand != trans.multiplicity as usize {
-                    res.push(ConvergenceConflict{state_1_id:state.id, transition_char:trans.character, state_2_id:trans.dest_id});
-                }
-            }
-        }
-        res
-    }
-
     pub fn print_shift_reduce_conflict(&self, c: &ShiftReduceConflict) {
         let s = c.state_id;
         let candidate = &self.lookup_state(s).candidates[c.candidate_idx];
@@ -283,9 +293,12 @@ impl Pilot {
     
     pub fn print_convergence_conflict(&self, c: &ConvergenceConflict) {
         let s1 = c.state_1_id;
+        let c1 = self.lookup_state(s1).candidates[c.candidate_1_1_idx].to_string();
+        let c2 = self.lookup_state(s1).candidates[c.candidate_1_2_idx].to_string();
         let ts = c.transition_char;
         let s2 = c.state_2_id;
-        eprintln!("convergence: multiple transition I{s1} -{ts}-> I{s2} leads to merged base candidate set");
+        let c3 = self.lookup_state(s2).candidates[c.candidate_2_idx].to_string();
+        eprintln!("transition I{s1} -{ts}-> I{s2}: convergence conflict as both {c1} and {c2} shift to {c3}");
     }
 
     pub fn print_conflicts(&self) {
@@ -301,11 +314,11 @@ impl Pilot {
                 self.print_reduce_reduce_conflict(confl);
                 n_confl += 1;
             }
-        }
-        let c_confl = self.convergence_conflicts();
-        for confl in &c_confl {
-            self.print_convergence_conflict(confl);
-            n_confl += 1;
+            let c_confl = state.convergence_conflicts();
+            for confl in &c_confl {
+                self.print_convergence_conflict(confl);
+                n_confl += 1;
+            }
         }
         if n_confl == 0 {
             println!("no conflicts");
@@ -360,20 +373,24 @@ fn shift_candidate(c: &Candidate, net: &MachineNet, next: char) -> Option<Candid
     return None;
 }
 
-fn shift(state: &PilotState, net: &MachineNet, next: char) -> (char, PilotState, i32) {
+fn shift(state: &PilotState, net: &MachineNet, character: char) -> (PilotTransition, PilotState) {
     let mut orig_states: HashSet<(char, i32)> = HashSet::new();
-    let mut new_cand: Vec<Candidate> = state.candidates.iter().filter_map(|c| {
-        if let Some(new) = shift_candidate(c, net, next) {
+    let mut candidates: Vec<Candidate> = Vec::new();
+    let mut candidate_map: Vec<(usize, usize)> = Vec::new();
+    for (i, c) in state.candidates.iter().enumerate() {
+        if let Some(new) = shift_candidate(c, net, character) {
             orig_states.insert((c.machine, c.state));
-            Some(new)
-        } else {
-            None
+            if let Some(j) = candidates.iter().position(|other| new == *other) {
+                // convergence conflicts hatch here
+                candidate_map.push((i, j));
+            } else {
+                candidate_map.push((i, candidates.len()));
+                candidates.push(new);
+            }
         }
-    }).collect();
-    let mult = orig_states.len() as i32;
-    new_cand.sort();
-    new_cand.dedup();
-    (next, PilotState{id:-1, candidates:new_cand, transitions:vec![]}, mult)
+    }
+    let multiplicity = orig_states.len() as i32;
+    (PilotTransition{character, dest_id:-1, multiplicity, candidate_map}, PilotState{id:-1, candidates, transitions:vec![]})
 }
 
 pub fn create_pilot(net: &MachineNet) -> Pilot {
@@ -396,9 +413,10 @@ pub fn create_pilot(net: &MachineNet) -> Pilot {
         let shifts: Vec<_> = future_xions.into_iter().map(|c| {
             shift(&state, net, c)
         }).collect();
-        let xions: Vec<_> = shifts.into_iter().map(|(c, maybe_new_state, mult)| {
+        let xions: Vec<_> = shifts.into_iter().map(|(mut trans, maybe_new_state)| {
             let id = pilot.insert(maybe_new_state, net);
-            PilotTransition{character:c, dest_id:id, multiplicity:mult}
+            trans.dest_id = id;
+            trans
         }).collect();
         worklist.extend(xions.iter().map(|xion| xion.dest_id));
         pilot.lookup_state_mut(state_id).transitions = xions;
