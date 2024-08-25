@@ -76,7 +76,12 @@ impl PilotState {
         res.push(format!("  >, xlabel=<{}>];", node_id));
 
         let transitions: Vec<_> = self.transitions.iter().map(|t| {
-            format!("  i{} -> i{} [label=\"{}\"];", self.id, t.dest_id, t.character)
+            let double = if t.multiplicity > 1 {
+                ", color = \"black:invis:black\""
+            } else {
+                ""
+            };
+            format!("  i{} -> i{} [label=\"{}\"{}];", self.id, t.dest_id, t.character, double)
         }).collect();
         res.extend(transitions);
 

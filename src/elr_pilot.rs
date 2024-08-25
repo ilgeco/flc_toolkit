@@ -361,10 +361,16 @@ fn shift_candidate(c: &Candidate, net: &MachineNet, next: char) -> Option<Candid
 }
 
 fn shift(state: &PilotState, net: &MachineNet, next: char) -> (char, PilotState, i32) {
+    let mut orig_states: HashSet<(char, i32)> = HashSet::new();
     let mut new_cand: Vec<Candidate> = state.candidates.iter().filter_map(|c| {
-        shift_candidate(c, net, next)
+        if let Some(new) = shift_candidate(c, net, next) {
+            orig_states.insert((c.machine, c.state));
+            Some(new)
+        } else {
+            None
+        }
     }).collect();
-    let mult = new_cand.len() as i32;
+    let mult = orig_states.len() as i32;
     new_cand.sort();
     new_cand.dedup();
     (next, PilotState{id:-1, candidates:new_cand, transitions:vec![]}, mult)
