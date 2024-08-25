@@ -127,7 +127,6 @@ pub struct Candidate {
     pub machine: char,
     pub state: i32,
     pub lookahead: char,
-    pub is_seed: bool,
     pub is_final: bool
 }
 
@@ -139,6 +138,10 @@ impl Candidate {
             format!("{}{}", self.state, self.machine)
         };
         format!("<{}, {}>", state, self.lookahead)
+    }
+
+    fn is_base(&self) -> bool {
+        self.state != 0
     }
 }
 
@@ -174,14 +177,14 @@ pub struct PilotState {
 }
 
 impl PilotState {
-    pub fn seeds(&self) -> HashSet<&Candidate> {
-        self.candidates.iter().filter(|x| x.is_seed).collect::<HashSet<_>>()
+    pub fn base_set(&self) -> HashSet<&Candidate> {
+        self.candidates.iter().filter(|x| x.is_base()).collect::<HashSet<_>>()
     }
     
     pub fn is_equivalent(&self, other: &PilotState) -> bool {
-        let my_seeds = self.seeds();
-        let other_seeds = other.seeds();
-        return my_seeds == other_seeds;
+        let my_base = self.base_set();
+        let other_base = other.base_set();
+        return my_base == other_base;
     }
 
     pub fn shift_reduce_conflicts(&self) -> Vec<ShiftReduceConflict> {
@@ -254,8 +257,8 @@ impl Pilot {
         for state in &self.states {
             for trans in &state.transitions {
                 let dest_state = self.lookup_state(trans.dest_id);
-                let n_seeds = dest_state.seeds().len();
-                if n_seeds != trans.multiplicity as usize {
+                let n_base_cand = dest_state.base_set().len();
+                if n_base_cand != trans.multiplicity as usize {
                     res.push(ConvergenceConflict{state_1_id:state.id, transition_char:trans.character, state_2_id:trans.dest_id});
                 }
             }
@@ -323,7 +326,7 @@ fn closure(state: &mut PilotState, net: &MachineNet) {
             let ini = net.followers(c.machine, t.dest_id, HashSet::from([c.lookahead]));
             for ch in ini {
                 let dest_state = net.lookup_state(t.character, 0);
-                let c2 = Candidate{machine:t.character, state:0, lookahead:ch, is_seed:false, is_final:dest_state.is_final};
+                let c2 = Candidate{machine:t.character, state:0, lookahead:ch, is_final:dest_state.is_final};
                 if !state.candidates.contains(&c2) {
                     state.candidates.push(c2);
                 }
@@ -351,7 +354,7 @@ fn shift_candidate(c: &Candidate, net: &MachineNet, next: char) -> Option<Candid
     for t in &mstate.transitions {
         if t.character == next {
             let dest_state = net.lookup_state(c.machine, t.dest_id);
-            return Some(Candidate{machine:c.machine, state:t.dest_id, lookahead:c.lookahead, is_seed:true, is_final:dest_state.is_final});
+            return Some(Candidate{machine:c.machine, state:t.dest_id, lookahead:c.lookahead, is_final:dest_state.is_final});
         }
     }
     return None;
@@ -369,7 +372,7 @@ fn shift(state: &PilotState, net: &MachineNet, next: char) -> (char, PilotState,
 
 pub fn create_pilot(net: &MachineNet) -> Pilot {
     let first_state = net.lookup_state('S', 0);
-    let init_candidate = Candidate{machine:'S', state:0, lookahead:'$', is_seed:false, is_final:first_state.is_final};
+    let init_candidate = Candidate{machine:'S', state:0, lookahead:'$', is_final:first_state.is_final};
     let init_state = PilotState{id:0, candidates:vec![init_candidate], transitions:vec![]};
     let mut pilot = Pilot{states: vec![]};
 

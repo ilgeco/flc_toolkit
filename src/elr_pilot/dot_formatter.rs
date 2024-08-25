@@ -4,7 +4,6 @@ struct MergedCandidate {
     machine: char,
     state: i32,
     lookaheads: Vec<char>,
-    is_seed: bool,
     is_final: bool
 }
 
@@ -33,11 +32,8 @@ impl PilotState {
                 if c.lookahead == '$' { '⊣' } else { c.lookahead }
             }).collect();
             lookaheads.sort();
-            let is_seed = raw_candidates.iter().fold(false, |v, c| {
-                v || c.is_seed
-            });
             let is_final: bool = raw_candidates[0].is_final;
-            MergedCandidate{machine, state, lookaheads, is_seed, is_final}
+            MergedCandidate{machine, state, lookaheads, is_final}
         }).collect()
     }
 
@@ -46,23 +42,23 @@ impl PilotState {
         res.push(format!("  i{} [label=<", self.id));
 
         let merged = self.merged_candidates();
-        let base_sets: Vec<_> = merged.iter().filter_map(|c| {
-            if c.is_seed {
+        let base: Vec<_> = merged.iter().filter_map(|c| {
+            if c.state != 0 {
                 Some(format!("    {}", c.to_dot_label_html()))
             } else {
                 None
             }
         }).collect();
-        let others: Vec<_> = merged.iter().filter_map(|c| {
-            if !c.is_seed {
+        let closure: Vec<_> = merged.iter().filter_map(|c| {
+            if c.state == 0 {
                 Some(format!("    {}", c.to_dot_label_html()))
             } else {
                 None
             }
         }).collect();
 
-        let sep_border_top = if base_sets.is_empty() { "t" } else { "" };
-        let sep_border_bot = if others.is_empty() { "b" } else { "" };
+        let sep_border_top = if base.is_empty() { "t" } else { "" };
+        let sep_border_bot = if closure.is_empty() { "b" } else { "" };
         let sep_border_sides = if sep_border_bot != "" || sep_border_top != "" {
             format!("sides=\"{}{}\"", sep_border_top, sep_border_bot)
         } else {
@@ -71,9 +67,9 @@ impl PilotState {
         let sep_border = format!("    <tr><td colspan=\"2\" {}></td></tr>", sep_border_sides);
         
         res.push("    <table border=\"0\" cellborder=\"1\" cellspacing=\"0\">".to_string());
-        res.extend(base_sets);
+        res.extend(base);
         res.push(sep_border);
-        res.extend(others);
+        res.extend(closure);
         res.push("    </table>".to_string());
 
         let node_id = format!("I<sub>{}</sub>", self.id);
