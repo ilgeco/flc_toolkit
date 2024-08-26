@@ -1,16 +1,16 @@
-use std::{fs::File, path::Path};
+use std::fs;
 use std::io::prelude::*;
-
+use std::{fs::File, path::Path};
 
 pub struct Lexer {
     input: String,
     read_idx: usize,
-    read_loc: SourceLocation
+    read_loc: SourceLocation,
 }
 
 struct Fragment<'a> {
     loc: SourceLocation,
-    val: &'a str
+    val: &'a str,
 }
 
 #[derive(Debug)]
@@ -32,43 +32,44 @@ pub enum TokenValue {
 #[derive(Debug, Clone, Copy)]
 pub struct SourceLocation {
     pub row: usize,
-    pub col: usize
+    pub col: usize,
 }
 
 impl SourceLocation {
     fn new() -> SourceLocation {
-        SourceLocation{row:0, col:0}
+        SourceLocation { row: 0, col: 0 }
     }
 
     pub fn emit_error(&self, s: &str) {
-        eprintln!("{}:{}: error: {}", self.row+1, self.col+1, s);
+        eprintln!("{}:{}: error: {}", self.row + 1, self.col + 1, s);
     }
 }
 
 #[derive(Debug)]
 pub struct Token {
     pub location: SourceLocation,
-    pub value: TokenValue
+    pub value: TokenValue,
 }
 
 impl Token {
     fn from_frag(frag: &Fragment, value: TokenValue) -> Token {
-        Token{location:frag.loc, value}
+        Token {
+            location: frag.loc,
+            value,
+        }
     }
 }
 
 impl Lexer {
     pub fn from_path(path: &Path) -> Lexer {
-        let mut file = match File::open(path) {
-            Err(why) => panic!("couldn't open file: {}", why),
-            Ok(file) => file,
-        };
-    
-        let mut s = String::new();
-        if let Err(why) = file.read_to_string(&mut s) {
-            panic!("couldn't read file: {}", why);
+        match fs::read_to_string(path) {
+            Ok(s) => Lexer {
+                input: s,
+                read_idx: 0,
+                read_loc: SourceLocation::new(),
+            },
+            Err(why) => panic!("Error file: {}", why),
         }
-        Lexer{input:s, read_idx:0, read_loc:SourceLocation::new()}
     }
 
     fn advance(&mut self, len: usize) -> Fragment {
@@ -87,12 +88,12 @@ impl Lexer {
                     self.read_loc.col += 1;
                 }
             } else {
-                break slice.len()
+                break slice.len();
             }
         };
-        let val = &self.input[self.read_idx .. self.read_idx+end];
+        let val = &self.input[self.read_idx..self.read_idx + end];
         self.read_idx += end;
-        Fragment{loc, val}
+        Fragment { loc, val }
     }
 
     fn accept_pattern(&mut self, pat: &str) -> Option<Fragment> {
@@ -198,7 +199,10 @@ impl Iterator for Lexer {
             } else if id == "final" {
                 return Some(Token::from_frag(&frag, TokenValue::KwFinal));
             } else if id.len() == 1 {
-                return Some(Token::from_frag(&frag, TokenValue::Ident(id.chars().next().unwrap())));
+                return Some(Token::from_frag(
+                    &frag,
+                    TokenValue::Ident(id.chars().next().unwrap()),
+                ));
             } else {
                 frag.loc.emit_error("identifier longer than one character");
                 return Some(Token::from_frag(&frag, TokenValue::Invalid));
