@@ -25,12 +25,20 @@ pub struct Machine {
 }
 
 impl Machine {
-    pub fn lookup_state(&self, id: i32) -> &State {
+    pub fn try_lookup_state(&self, id: i32) -> Option<&State> {
         for s in &self.states {
             if s.id == id {
-                return &s;
+                return Some(s);
             }
         }
-        panic!("state {id} does not exist")
+        None
+    }
+
+    pub fn lookup_state(&self, id: i32) -> &State {
+        if let Some(s) = self.try_lookup_state(id) {
+            s
+        } else {
+            panic!("state {id} does not exist")
+        }
     }
 }

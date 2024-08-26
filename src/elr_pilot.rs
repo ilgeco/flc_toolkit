@@ -10,13 +10,29 @@ pub struct MachineNet {
 }
 
 impl MachineNet {
-    pub fn lookup_machine(&self, machine: char) -> &Machine {
+    pub fn try_lookup_machine(&self, machine: char) -> Option<&Machine> {
         for m in &self.machines {
             if m.name == machine {
-                return &m;
+                return Some(m);
             }
         }
-        panic!("machine {machine} does not exist")
+        None
+    }
+
+    pub fn lookup_machine(&self, machine: char) -> &Machine {
+        if let Some(m) = self.try_lookup_machine(machine) {
+            m
+        } else {
+            panic!("machine {machine} does not exist")
+        }
+    }
+
+    pub fn try_lookup_state(&self, machine: char, id: i32) -> Option<&State> {
+        if let Some(m) = self.try_lookup_machine(machine) {
+            m.try_lookup_state(id)
+        } else {
+            None
+        }
     }
 
     pub fn lookup_state(&self, machine: char, id: i32) -> &State {
@@ -83,13 +99,41 @@ impl MachineNet {
         res
     }
 
+    fn validate_transitions(&self) -> bool {
+        let mut res = true;
+        for m in &self.machines {
+            for s in &m.states {
+                for (i, t) in s.transitions.iter().enumerate() {
+                    if let None = m.try_lookup_state(t.dest_id) {
+                        eprintln!("error: transition {}{} -{}-> {}{} goes to a non-existent state", m.name, s.id, t.character, m.name, t.dest_id);
+                        res = false;
+                    }
+                    if t.is_nonterminal() {
+                        if let None = self.try_lookup_machine(t.character) {
+                            eprintln!("error: transition {}{} -{}-> ... has an invalid nonterminal", m.name, s.id, t.character);
+                            res = false;
+                        }
+                    }
+                    for tj in &s.transitions[i+1..] {
+                        if t.character == tj.character {
+                            eprintln!("error: multiple transitions {}{} -{}-> ...", m.name, s.id, t.character);
+                            res = false;
+                        }
+                    }
+                }
+            }
+        }
+        res
+    }
+
     pub fn validate(&self) -> bool {
         [
             self.validate_machine_count(),
             self.validate_start(),
             self.validate_state_count(),
             self.validate_single_initial_state(),
-            self.validate_any_final_state()
+            self.validate_any_final_state(),
+            self.validate_transitions()
         ].into_iter().all(|v| v)
     }
 
