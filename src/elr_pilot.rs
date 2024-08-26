@@ -321,7 +321,7 @@ impl Pilot {
             }
         }
         if n_confl == 0 {
-            println!("no conflicts");
+            eprintln!("no conflicts");
         }
     }
 }
