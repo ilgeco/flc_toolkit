@@ -73,7 +73,8 @@ impl Lexer {
 
     fn advance(&mut self, len: usize) -> Fragment {
         let loc = self.read_loc;
-        let mut iter = self.input[self.read_idx..].char_indices();
+        let slice = &self.input[self.read_idx..];
+        let mut iter = slice.char_indices();
         let end = loop {
             if let Some((i, c)) = iter.next() {
                 if i == len {
@@ -86,11 +87,7 @@ impl Lexer {
                     self.read_loc.col += 1;
                 }
             } else {
-                if let Some((i, _)) = iter.last() {
-                    break i;
-                } else {
-                    break 0;
-                }
+                break slice.len()
             }
         };
         let val = &self.input[self.read_idx .. self.read_idx+end];
